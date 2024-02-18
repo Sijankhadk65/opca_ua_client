@@ -1,6 +1,6 @@
-import asyncio
-from asyncua import Client, ua
-import json
+from asyncua import Client
+from models import NodeTree
+
 
 async def list_all_nodes(server_endpoint):
     # Create a client and connect to the OPC UA server
@@ -17,21 +17,18 @@ async def list_all_nodes(server_endpoint):
     return var
 
 
-async def print_nodes_recursive(node, indent=0):
+async def print_nodes_recursive(node):
     nodes = []
-    # Print information about the current node
-    node_dict = {
-        "id": node.nodeid.Identifier,
-        "nodes": []
-    }
+    node_tree = NodeTree()
+    node_tree.set_id(node.nodeid.Identifier)
 
     # Recursively print children
     child_nodes_num = await node.get_children()
     if child_nodes_num != 0:
         for child_node in await node.get_children():
-            node_dict['nodes'].append(await print_nodes_recursive(child_node, indent + 1))
-    nodes.append(node_dict)
-    return nodes
+            nodes.append(await print_nodes_recursive(child_node))
+    node_tree.set_nodes(nodes)
+    return node_tree
 
 
 async def server_main():

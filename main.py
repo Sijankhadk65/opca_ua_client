@@ -2,20 +2,11 @@ import asyncio
 
 import requests
 import sys
-from PyQt5.QtCore import QAbstractListModel, QStringListModel
+from PyQt5.QtCore import QAbstractListModel, QStringListModel, QTimer, Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QVBoxLayout, QLabel, QListView
 from opc_ua_provider import server_main
 
 nodes_list = []
-
-
-class CustomListModel(QAbstractListModel):
-
-    def __int__(self):
-        self._data = nodes_list
-
-    def data(self, index, role):
-        return self._data
 
 
 class MyApplication(QWidget):
@@ -54,8 +45,8 @@ class MyApplication(QWidget):
         self.show()
 
     def show_response(self):
-        nodes_list = asyncio.run(server_main())
-        print(nodes_list)
+        nodes_tree = asyncio.run(server_main())
+        print(nodes_tree)
 
     def add_list_item(self):
         nodes_list.append("item")
