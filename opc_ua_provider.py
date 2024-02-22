@@ -21,7 +21,7 @@ async def print_nodes_recursive(node):
     nodes = []
     node_tree = NodeTree()
     node_tree.set_id(node.nodeid.Identifier)
-
+    node_tree.set_ns(node.nodeid.NamespaceIndex)
     # Recursively print children
     child_nodes_num = await node.get_children()
     if child_nodes_num != 0:
