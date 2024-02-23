@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import traceback
 import requests
@@ -152,10 +153,11 @@ class MainWindow(QMainWindow):
         url = "https://dummyjson.com/products/1"
 
         try:
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.text  # Access the fetched data
-            return data  # Return the fetched data
+            # response = requests.get(url)
+            # response.raise_for_status()
+            # data = response.text  # Access the fetched data
+            response = asyncio.run(server_main())
+            return response  # Return the fetched data
         except Exception as e:
             return f"Error fetching data from {url}"
 
