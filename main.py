@@ -10,10 +10,10 @@ from PyQt6.QtCore import (Q_ARG, QMetaObject, QMutex, QMutexLocker, QObject,
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow,
                              QMessageBox, QPlainTextEdit, QPushButton,
-                             QVBoxLayout, QWidget)
+                             QVBoxLayout, QWidget, QTreeWidget, QTreeWidgetItem)
 
 from opc_ua_provider import server_main
-from asyncio import run_coroutine_threadsafe
+from models import NodeTree
 
 
 class WorkerSignals(QObject):
@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-
+        self.tree_nodes = []
         self.worker = None
         self.old_stdout = None
         self.start_button = QPushButton("Start!", self)
@@ -104,10 +104,15 @@ class MainWindow(QMainWindow):
         self.text_box = CustomPlainTextEdit(self)
         self.text_box.setReadOnly(True)  # Make the text box read-only
 
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(2)
+        self.tree.setHeaderLabels(["ID", "Namespace"])
+
         layout = QVBoxLayout()
         layout.addWidget(self.start_button)
         layout.addWidget(self.stop_button)
         layout.addWidget(self.text_box)
+        layout.addWidget(self.tree)
 
         # Set the central widget with the layout
         central_widget = QWidget()
@@ -166,13 +171,22 @@ class MainWindow(QMainWindow):
         print(message)
 
     def result_thread(self, message):
-        print(f"Return value:{message}")
+        self.tree_nodes = self.generate_tree_view_struct(message)
+        self.tree.insertTopLevelItems(0, [self.tree_nodes])
+        print(f"Recieved Node info...")
 
     def finish_thread(self):
         print("Asynchronous processing is complete")
         # Restore the standard output destination
         sys.stdout = self.old_stdout
         self.thread_pool.waitForDone()
+
+    def generate_tree_view_struct(self, node):
+        item = QTreeWidgetItem([str(node.get_id()), str(node.get_ns())])
+        if node.get_nodes():
+            for child in node.get_nodes():
+                item.addChild(self.generate_tree_view_struct(child))
+        return item
 
 
 if __name__ == "__main__":

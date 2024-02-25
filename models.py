@@ -23,14 +23,14 @@ class NodeTree:
     def get_nodes(self) -> []:
         return self._nodes
 
-    # def __str__(self):
-    #     # String representation of the current node
-    #     result = f"NodeTree ID: {self._id}, NodeTree Namespace: {self._ns}"
-    #     # String representation of nested nodes
-    #     if self._nodes:
-    #         result += "\n  Subtrees:\n"
-    #         for node in self._nodes:
-    #             result += f"    {node}\n"
-    #
-    #     return result
+    def __str__(self):
+        # String representation of the current node
+        result = f"NodeTree ID: {self._id}, NodeTree Namespace: {self._ns}"
+        # String representation of nested nodes
+        if self._nodes:
+            result += "\n  Subtrees:\n"
+            for node in self._nodes:
+                result += f"    {node}\n"
+
+        return result
 
