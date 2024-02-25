@@ -6,7 +6,7 @@ class NodeTree:
         pass
 
     def set_id(self, node_id):
-        self._id = node_id
+        self._id = str(node_id)
 
     def get_id(self) -> str:
         return self._id
@@ -22,6 +22,18 @@ class NodeTree:
 
     def get_nodes(self) -> []:
         return self._nodes
+
+    def find(self, index):
+        if self._id == str(index):
+            return self
+
+        for node in self._nodes:
+            traversedNode = node.find(index)
+
+            if traversedNode:
+                return traversedNode
+
+        return None
 
     def __str__(self):
         # String representation of the current node

@@ -1,18 +1,19 @@
 import asyncio
 import sys
 import traceback
-import requests
+import pyqtgraph as pg
+import math
 
 from progress import HIDE_CURSOR, SHOW_CURSOR
 
 from PyQt6.QtCore import (Q_ARG, QMetaObject, QMutex, QMutexLocker, QObject,
                           QRunnable, Qt, QThreadPool, pyqtSignal, pyqtSlot)
 from PyQt6.QtGui import QTextCursor
-from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow,
+from PyQt6.QtWidgets import (QApplication, QSpinBox, QMainWindow,
                              QMessageBox, QPlainTextEdit, QPushButton,
-                             QVBoxLayout, QWidget, QTreeWidget, QTreeWidgetItem)
+                             QVBoxLayout, QWidget, QTreeWidget, QTreeWidgetItem, QLabel, QFrame)
 
-from opc_ua_provider import server_main
+from opc_ua_provider import server_main, get_subscription_data
 from models import NodeTree
 
 
@@ -92,9 +93,16 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
+
+        self.node_data = NodeTree()
+        self.selected_node = NodeTree()
+
         self.tree_nodes = []
+        self.time_duration = 1
+
         self.worker = None
         self.old_stdout = None
+
         self.start_button = QPushButton("Start!", self)
         self.start_button.clicked.connect(self.on_start)
 
@@ -104,15 +112,41 @@ class MainWindow(QMainWindow):
         self.text_box = CustomPlainTextEdit(self)
         self.text_box.setReadOnly(True)  # Make the text box read-only
 
+        self.label = QLabel()
+        self.label.setText("Enter your duration:")
+
+        self.duration = QSpinBox()
+        self.duration.setMaximum(10000)
+        self.duration.setMinimum(1)
+        self.duration.setSuffix("s")
+        self.duration.valueChanged.connect(self.duration_changed)
+
         self.tree = QTreeWidget()
         self.tree.setColumnCount(2)
         self.tree.setHeaderLabels(["ID", "Namespace"])
+        self.tree.doubleClicked.connect(self.node_selected)
+
+        self.plot_graph = pg.PlotWidget()
+        self.minutes = []
+        self.temperature = []
+
+        self.start_g_button = QPushButton("Start Plotting", self)
+        self.start_g_button.clicked.connect(self.start_plotting)
+
+        self.selected_node = NodeTree()
 
         layout = QVBoxLayout()
         layout.addWidget(self.start_button)
         layout.addWidget(self.stop_button)
-        layout.addWidget(self.text_box)
         layout.addWidget(self.tree)
+
+        layout.addWidget(self.label)
+        layout.addWidget(self.duration)
+
+        layout.addWidget(self.plot_graph)
+        layout.addWidget(self.start_g_button)
+
+        layout.addWidget(self.text_box)
 
         # Set the central widget with the layout
         central_widget = QWidget()
@@ -136,11 +170,11 @@ class MainWindow(QMainWindow):
             self.old_stdout = sys.stdout
             sys.stdout = self.text_box
             print("Start asynchronous processing")
-            self.worker = Worker(self.run_thread, "sample args", sample_kwargs1=1, sample_kwargs2="option")
+            self.worker = Worker(self.run_thread_node, "sample args", sample_kwargs1=1, sample_kwargs2="option")
             self.stop_worker.connect(self.worker.stop)
             self.worker.signals.finish.connect(self.finish_thread)
             self.worker.signals.error.connect(self.error_thread)
-            self.worker.signals.result.connect(self.result_thread)
+            self.worker.signals.result.connect(self.result_thread_node)
             self.thread_pool.start(self.worker)
 
     def on_stop(self):
@@ -148,15 +182,10 @@ class MainWindow(QMainWindow):
             print("Request to suspend processing")
             self.stop_worker.emit()
 
-    def run_thread(self, worker_object, *args, **kwargs):
-        # The number and type of arguments can be rewritten.
-        # However, the first argument should be fixed to "worker_object".
-        # This is necessary to describe the abort process.
+    def run_thread_node(self, worker_object, *args, **kwargs):
         print("Start the main process")
         print(f"args: {args}")
         print(f"kwargs: {kwargs}")
-        url = "https://dummyjson.com/products/1"
-
         try:
             # response = requests.get(url)
             # response.raise_for_status()
@@ -164,13 +193,14 @@ class MainWindow(QMainWindow):
             response = asyncio.run(server_main())
             return response  # Return the fetched data
         except Exception as e:
-            return f"Error fetching data from {url}"
+            return f"Error fetching data from OPC-UA-SERVER"
 
     def error_thread(self, message):
         print("Outputs error logs that occur in asynchronous processing")
         print(message)
 
-    def result_thread(self, message):
+    def result_thread_node(self, message):
+        self.node_data = message
         self.tree_nodes = self.generate_tree_view_struct(message)
         self.tree.insertTopLevelItems(0, [self.tree_nodes])
         print(f"Recieved Node info...")
@@ -187,6 +217,49 @@ class MainWindow(QMainWindow):
             for child in node.get_nodes():
                 item.addChild(self.generate_tree_view_struct(child))
         return item
+
+    def start_plotting(self):
+        if self.thread_pool.activeThreadCount() < self.thread_pool.maxThreadCount():
+            self.old_stdout = sys.stdout
+            sys.stdout = self.text_box
+            print("Start asynchronous processing")
+            self.worker = Worker(self.run_thread_graph, "sample args", sample_kwargs1=1, sample_kwargs2="option")
+            self.stop_worker.connect(self.worker.stop)
+            self.worker.signals.finish.connect(self.finish_thread)
+            self.worker.signals.error.connect(self.error_thread)
+            self.worker.signals.result.connect(self.result_thread_graph)
+            self.thread_pool.start(self.worker)
+
+
+    def run_thread_graph(self, worker_object, *args, **kwargs):
+        print("Start the main process")
+        print(f"args: {args}")
+        print(f"kwargs: {kwargs}")
+        try:
+            response = asyncio.run(get_subscription_data("opc.tcp://192.168.1.100:4840/freeopcua/server/", self.selected_node.get_ns(), self.selected_node.get_id(), self.time_duration))
+            if len(response) < self.time_duration:
+                self.temperature = response
+                temp_arr = [response[len(response) - 1]] * (self.time_duration - len(response))
+                self.temperature.extend(temp_arr)
+            else:
+                self.temperature = response
+            self.minutes = range(0, self.time_duration)
+        except Exception as e:
+            return f"Error fetching data from OPC-UA-SERVER {e}"
+        return "Data imported successfully "
+
+    def result_thread_graph(self, message):
+        print(message)
+        self.plot_graph.plot(self.minutes, self.temperature)
+
+    def duration_changed(self, val):
+        print(f"New Duration : {val}")
+        self.time_duration = val
+
+    def node_selected(self, sel):
+        self.selected_node = self.node_data.find(sel.data())
+        print(self.selected_node)
+        QMessageBox.information(None, "", "Node Selected", QMessageBox.StandardButton.Ok)
 
 
 if __name__ == "__main__":
