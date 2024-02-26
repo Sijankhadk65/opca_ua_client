@@ -2,7 +2,8 @@ import asyncio
 import sys
 import traceback
 import pyqtgraph as pg
-import math
+
+from firebase_db_provider import FirebaseDBProvider
 
 from progress import HIDE_CURSOR, SHOW_CURSOR
 
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
 
         self.node_data = NodeTree()
         self.selected_node = NodeTree()
+        self.db_provider = FirebaseDBProvider()
 
         self.tree_nodes = []
         self.time_duration = 1
@@ -243,7 +245,8 @@ class MainWindow(QMainWindow):
                 self.temperature.extend(temp_arr)
             else:
                 self.temperature = response
-            self.minutes = range(0, self.time_duration)
+            self.minutes = list(range(0, self.time_duration))
+            self.db_provider.upload(self.minutes,self.temperature)
         except Exception as e:
             return f"Error fetching data from OPC-UA-SERVER {e}"
         return "Data imported successfully "
